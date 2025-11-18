@@ -12,8 +12,6 @@ local options = {
   command = 'xdg-open',
   args = '',
   args_delimiter = ',',
-  path_map = 'screenshot-directory=@property/screenshot-directory:parent-directory=@computed/parent-directory',
-  path_map_delimiter = ':',
 }
 
 mp.options.read_options(options, "open-file-path")
@@ -21,6 +19,11 @@ mp.options.read_options(options, "open-file-path")
 local computed = {
   -- Open the parent directory of the current file.
   parent_directory = '@computed/parent-directory'
+}
+
+local prefix = {
+  property = '@property/',
+  computed = '@computed/'
 }
 
 local function string_starts_with(string, start)
@@ -51,53 +54,33 @@ local function parse_args(args, delimiter)
   return parsed_args
 end
 
--- key1=/path/to/open:key2=@property/property-key
-local function build_path_map(path_map_str, delimiter)
-  local path_map = {}
+local function get_path(value)
+  local path
 
-  if path_map_str then
-    local pattern = get_split_pattern(delimiter)
-    local property_prefix = '@property/'
-
-    for part in string.gmatch(path_map_str, pattern) do
-      local key, value = part:match("(.*)=(.*)")
-      local path
-
-      -- check for computed properties
-      if value == computed.parent_directory then
-        local file_path = mp.get_property('path')
-        if file_path ~= nil then
-          -- assign the directory to path
-          path = mp.utils.split_path(file_path)
-        end
-      elseif string_starts_with(value, property_prefix) then
-        -- get property if value starts with the property prefix
-        local property = string.sub(value, string.len(property_prefix) + 1)
-        path = mp.get_property(property)
-      else
-        path = value
-      end
-
-      if path ~= nil then
-        path_map[key] = path
+  -- get property if value starts with the property prefix
+  if string_starts_with(value, prefix.property) then
+    local property = string.sub(value, string.len(prefix.property) + 1)
+    path = mp.get_property(property)
+  elseif string_starts_with(value, prefix.computed) then
+    -- check for computed properties
+    if value == computed.parent_directory then
+      local file_path = mp.get_property('path')
+      if file_path ~= nil then
+        -- assign the directory to path
+        path = mp.utils.split_path(file_path)
       end
     end
+  else
+    path = value
   end
 
-  return path_map
+  return path
 end
 
 local parsed_args = parse_args(options.args, options.args_delimiter)
 
--- don't build path map if computed value is needed
-local cached_path_map
-if not string.find(options.path_map, '@computed/') then
-  cached_path_map = build_path_map(options.path_map, options.path_map_delimiter)
-end
-
-local function open_file_path(key)
-  local path_map = cached_path_map or build_path_map(options.path_map, options.path_map_delimiter)
-  local path = path_map[key]
+local function open_file_path(flag)
+  local path = get_path(flag)
 
   if path then
     local absolute_path = mp.command_native({ "expand-path", path })
@@ -114,10 +97,8 @@ local function open_file_path(key)
       playback_only = false,
       args = args
     })
-  elseif path == nil then
-    mp.msg.warn("No valid path associated with key: '" .. key .. "'")
   else
-    mp.msg.warn('No valid path to open.')
+    mp.msg.warn("Unable to open path: '" .. flag .. "'")
   end
 end
 

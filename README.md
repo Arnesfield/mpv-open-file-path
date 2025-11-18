@@ -4,26 +4,39 @@ Open file path in [mpv](https://mpv.io/).
 
 ## Install
 
-1. Download the following files to their appropriate directories under your mpv config (e.g., `~/.config/mpv`):
+Download the following files to their appropriate directories under your mpv config (e.g., `~/.config/mpv`):
 
-   [`open-file-path.lua`](open-file-path.lua) - Save to `scripts` directory.
+[`open-file-path.lua`](open-file-path.lua) - Save to `scripts` directory.
 
-   ```sh
-   wget github.com/Arnesfield/mpv-open-file-path/raw/main/open-file-path.lua
-   ```
+```sh
+wget github.com/Arnesfield/mpv-open-file-path/raw/main/open-file-path.lua
+```
 
-   [`open-file-path.conf`](open-file-path.conf) - Save to `script-opts` directory. Includes defaults.
+[`open-file-path.conf`](open-file-path.conf) - Save to `script-opts` directory. Includes defaults.
 
-   ```sh
-   wget github.com/Arnesfield/mpv-open-file-path/raw/main/open-file-path.conf
-   ```
+```sh
+wget github.com/Arnesfield/mpv-open-file-path/raw/main/open-file-path.conf
+```
 
-2. Use `script-message open-file-path <key>` in your `input.conf`. Example:
+## Usage
 
-   ```conf
-   ctrl+S script-message open-file-path screenshot-directory
-   ctrl+. script-message open-file-path parent-directory
-   ```
+Use `script-message open-file-path <path>` in your `input.conf`. Example:
+
+```conf
+ctrl+/ script-message open-file-path ~/Videos
+/ script-message open-file-path @computed/parent-directory
+ctrl+S script-message open-file-path @property/screenshot-directory
+```
+
+### Properties as Paths
+
+Paths prefixed with `@property/` (e.g., `@property/<property-key>`) can be used to treat the value from `mp.get_property('<property-key>')` as a file path to open.
+
+### Computed Paths
+
+Paths prefixed with `@computed/` are hardcoded:
+
+- `@computed/parent-directory` - Open the parent directory of the current file.
 
 ## Config
 
@@ -46,35 +59,6 @@ Additional args for [`command`](#command) (comma-separated by default).
 Default: `,`
 
 The delimiter for [`args`](#args).
-
-### path_map
-
-Default: `screenshot-directory=@property/screenshot-directory:parent-directory=@computed/parent-directory`
-
-List of key and path pairs separated by a colon (`:`) by default. Example `scripts-opts/open-file-path.lua`:
-
-```conf
-path_map=my-path=~/Pictures:screenshot-directory=@property/screenshot-directory:parent-directory=@computed/parent-directory
-```
-
-The keys will be passed as an argument to the script message. Example `input.conf`:
-
-```conf
-ctrl+S script-message open-file-path screenshot-directory
-ctrl+. script-message open-file-path parent-directory
-```
-
-### path_map_delimiter
-
-Default: `:`
-
-The delimiter for [`path_map`](#path_map).
-
-#### Computed Paths
-
-List of computed paths that can be used as values for [`path_map`](#path_map).
-
-- `@computed/parent-directory` - Open the parent directory of the current file.
 
 ## License
 
