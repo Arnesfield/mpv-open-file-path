@@ -25,8 +25,8 @@ Use `script-message open-file-path <path>` in your `input.conf`. Example:
 ```conf
 ctrl+/ script-message open-file-path ~/Videos
 / script-message open-file-path @computed/parent-directory
+ctrl+. script-message open-file-path @property/path
 ctrl+S script-message open-file-path @property/screenshot-directory
-ctrl+. script-message open-file-path @computed/self
 ```
 
 ### Properties as Paths
@@ -38,7 +38,6 @@ Paths prefixed with `@property/` (e.g., `@property/<property-key>`) can be used 
 Paths prefixed with `@computed/` are hardcoded:
 
 - `@computed/parent-directory` - Open the parent directory of the current file.
-- `@computed/self` - Open the current file (e.g., for YouTube videos).
 
 ## Config
 
