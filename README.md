@@ -143,7 +143,7 @@ Options can also be configured in `mpv.conf` via `script-opts` using the `run` p
 
 Default: `xdg-open`
 
-The command to run by default for non-command mode calls. Required for non-command mode calls.
+The command to run by default for the [`run`](#run) script message.
 
 ### vars
 
