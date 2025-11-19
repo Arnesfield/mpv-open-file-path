@@ -40,9 +40,11 @@ end
 ---@param key 'raw'|'key'|'property'|'computed'|string
 ---@param value string
 ---@param kv_table table
----@return string|nil
+---@return { valid_key: boolean, value: string|nil }
 local function resolve_kv_pair(key, value, kv_table)
+  ---@type string|nil
   local result
+  local valid_key = true
 
   if key == 'raw' then
     -- use value as is
@@ -62,9 +64,11 @@ local function resolve_kv_pair(key, value, kv_table)
         result = mp.utils.split_path(file_path)
       end
     end
+  else
+    valid_key = false
   end
 
-  return result
+  return { valid_key = valid_key, value = result }
 end
 
 ---@param str string
@@ -76,7 +80,9 @@ local function apply_modifiers(str, modifiers)
   for _, value in ipairs(modifiers) do
     -- include other modifiers here
     if value == 'path' then
-      result = mp.command_native({ "expand-path", result })
+      result = mp.command_native({ 'expand-path', result })
+    else
+      mp.msg.warn(string.format("Unrecognized modifier: '%s'", value))
     end
   end
 
@@ -88,23 +94,40 @@ local var_table = build_kv_table(options.vars, options.vars_delimiter)
 ---@param arg string
 ---@param command_mode? boolean
 local function parse_arg(arg, command_mode)
+  if command_mode then
+    local match = arg:match('^:(.*)')
+    if match == nil then
+      return arg
+    end
+
+    -- remove colon
+    arg = match
+  end
+
+  local use_raw = false
+
   ---@type string|nil
   local result
-  local pattern = string.format('%s@([^/]+)/(.*)', command_mode and ':' or '')
   ---@type string|nil, string|nil
-  local key, value = arg:match(pattern)
+  local key, value = arg:match('^@([^/]+)/(.*)')
 
   if key ~= nil and value ~= nil then
+    ---@type string[]
     local modifiers = {}
 
     -- split by dot to get modifiers
     for part in string.gmatch(key, '([^.]+)') do
       -- first match should be the value
       if result == nil then
-        result = resolve_kv_pair(part, value, var_table)
+        local resolved = resolve_kv_pair(part, value, var_table)
 
-        -- stop loop if no value since we don't need to apply the modifiers
-        if result == nil then
+        if resolved.value ~= nil then
+          result = resolved.value
+        else
+          -- if not a valid key, then use the raw value as is
+          use_raw = not resolved.valid_key
+
+          -- stop loop if no value since we don't need to apply the modifiers
           break
         end
       else
@@ -117,19 +140,39 @@ local function parse_arg(arg, command_mode)
       result = apply_modifiers(result, modifiers)
     end
   elseif command_mode then
-    -- use raw value if no match
-    result = arg:match(':(.*)')
-    result = result ~= nil and resolve_kv_pair('key', result, var_table) or arg
+    result = resolve_kv_pair('key', arg, var_table).value
   else
-    -- use raw value
-    result = arg
+    use_raw = true
+  end
+
+  if use_raw then
+    -- in command mode, placeholders with the colon prefix should have a value
+    if command_mode then
+      result = nil
+    else
+      result = arg
+    end
   end
 
   return result
 end
 
----@vararg string
-local function run(...)
+---@param args string[]
+local function run_async(args)
+  mp.msg.info('Running:', table.concat(args, ' '))
+
+  mp.command_native_async({
+    name = 'subprocess',
+    capture_stderr = false,
+    capture_stdout = false,
+    playback_only = false,
+    args = args
+  })
+end
+
+
+---@param arg string|nil
+local function run(arg)
   -- arg
   -- @cmd
   -- @key[.path.modifier]/{placeholder-key}
@@ -137,60 +180,65 @@ local function run(...)
   -- @property[.path.modifier]/{property-key}
   -- @computed[.path.modifier]/{computed-key}
 
-  local args = { ... }
-  local arg1 = args[1]
+  -- return early
+  if not options.command then
+    mp.msg.error("Option 'command' is required.")
+    return
+  elseif arg == nil then
+    mp.msg.error('Argument to run is required.')
+    return
+  end
+
+  local parsed = parse_arg(arg)
+
+  -- return early
+  if parsed == nil then
+    mp.msg.error(string.format("Unable to parse: '%s'", arg))
+    return
+  end
+
+  run_async({ options.command, parsed })
+end
+
+---@vararg string
+local function run_cmd(...)
   ---@type string[]
   local cmd_args = {}
 
-  if arg1 ~= nil and arg1 ~= '@cmd' then
-    -- return early
-    if not options.command then
-      mp.msg.error("Option 'command' is required.")
-      return
-    end
-
-    local parsed = parse_arg(arg1)
+  for i, arg in ipairs({ ... }) do
+    local parsed = parse_arg(arg, true)
 
     -- return early
     if parsed == nil then
-      mp.msg.error(string.format("Unable to parse: '%s'", arg1))
+      mp.msg.error(string.format("Unable to parse args[%d]: '%s'", i, arg))
       return
     end
 
-    table.insert(cmd_args, options.command)
     table.insert(cmd_args, parsed)
-  else
-    -- command mode
-    for i = 2, #args do
-      local arg = args[i]
-      local parsed = parse_arg(arg, true)
-
-      -- return early
-      if parsed == nil then
-        mp.msg.error(string.format("Unable to parse args[%d]: '%s'", i, arg))
-        return
-      end
-
-      table.insert(cmd_args, parsed)
-    end
   end
 
   if #cmd_args > 0 then
-    mp.msg.info('Running:', table.concat(cmd_args, ' '))
-
-    mp.command_native_async({
-      name = 'subprocess',
-      capture_stderr = false,
-      capture_stdout = false,
-      playback_only = false,
-      args = cmd_args
-    })
+    run_async(cmd_args)
   else
-    local message = arg1 ~= nil
-        and string.format("Unrecognized argument: '%s'", arg1)
-        or 'No arguments.'
-    mp.msg.warn(message)
+    mp.msg.warn('No arguments to run.')
   end
 end
 
+---@vararg string
+local function run_parse(...)
+  local args = { ... }
+  ---@type string[]
+  local result = {}
+
+  for _, value in ipairs(args) do
+    local parsed = parse_arg(value)
+    parsed = parsed ~= nil and parsed or 'nil'
+    table.insert(result, parsed)
+  end
+
+  mp.msg.info(table.concat(result, ', '))
+end
+
 mp.register_script_message('run', run)
+mp.register_script_message('run-cmd', run_cmd)
+mp.register_script_message('run-parse', run_parse)
