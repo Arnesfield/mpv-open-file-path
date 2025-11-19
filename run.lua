@@ -1,8 +1,8 @@
--- open-file-path.lua
+-- run.lua
 --
--- Open file path in mpv.
+-- Run commands in mpv via script-message.
 --
--- https://github.com/Arnesfield/mpv-open-file-path
+-- https://github.com/Arnesfield/mpv-run
 
 mp.msg = require('mp.msg')
 mp.options = require('mp.options')
@@ -14,7 +14,7 @@ local options = {
   vars_delimiter = ',',
 }
 
-mp.options.read_options(options, "open-file-path")
+mp.options.read_options(options, 'run')
 
 local computed = {
   -- Open the parent directory of the current file.
@@ -90,7 +90,7 @@ local var_table = build_kv_table(options.vars, options.vars_delimiter)
 local function parse_arg(arg, command_mode)
   ---@type string|nil
   local result
-  local pattern = string.format('%s@(.*)/(.*)', command_mode and ':' or '')
+  local pattern = string.format('%s@([^/]+)/(.*)', command_mode and ':' or '')
   ---@type string|nil, string|nil
   local key, value = arg:match(pattern)
 
@@ -129,7 +129,7 @@ local function parse_arg(arg, command_mode)
 end
 
 ---@vararg string
-local function open_file_path(...)
+local function run(...)
   -- arg
   -- @cmd
   -- @key[.path.modifier]/{placeholder-key}
@@ -193,4 +193,4 @@ local function open_file_path(...)
   end
 end
 
-mp.register_script_message('open-file-path', open_file_path)
+mp.register_script_message('run', run)
