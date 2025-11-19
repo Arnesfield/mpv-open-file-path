@@ -10,95 +10,186 @@ mp.utils = require('mp.utils')
 
 local options = {
   command = 'xdg-open',
-  args = '',
-  args_delimiter = ',',
+  vars = 'command=xdg-open',
+  vars_delimiter = ',',
 }
 
 mp.options.read_options(options, "open-file-path")
 
 local computed = {
   -- Open the parent directory of the current file.
-  parent_directory = '@computed/parent-directory'
+  parent_directory = 'parent-directory'
 }
 
-local prefix = {
-  property = '@property/',
-  computed = '@computed/'
-}
+---@param kv_str string
+---@param delimiter string
+---@return table
+local function build_kv_table(kv_str, delimiter)
+  local result = {}
 
-local function string_starts_with(value, start)
-  return value.sub(value, 1, value.len(start)) == start
-end
-
-local function get_split_pattern(delimiter)
-  return '([^' .. delimiter .. ']+)'
-end
-
-local function table_append(source_table, table)
-  for i = 1, #table do
-    source_table[#source_table + 1] = table[i]
-  end
-  return source_table
-end
-
-local function parse_args(args, delimiter)
-  local parsed_args = {}
-  local pattern = get_split_pattern(delimiter)
-
-  if args then
-    for arg in string.gmatch(args, pattern) do
-      table.insert(parsed_args, arg)
+  if kv_str then
+    local pattern = string.format('([^=%s]+)=([^%s]*)', delimiter, delimiter)
+    for key, value in string.gmatch(kv_str, pattern) do
+      result[key] = value
     end
   end
 
-  return parsed_args
+  return result
 end
 
-local function get_path(value)
-  local path
+---@param key 'raw'|'key'|'property'|'computed'|string
+---@param value string
+---@param kv_table table
+---@return string|nil
+local function resolve_kv_pair(key, value, kv_table)
+  local result
 
-  -- get property if value starts with the property prefix
-  if string_starts_with(value, prefix.property) then
-    local property = string.sub(value, string.len(prefix.property) + 1)
-    path = mp.get_property(property)
-  elseif string_starts_with(value, prefix.computed) then
+  if key == 'raw' then
+    -- use value as is
+    result = value
+  elseif key == 'key' then
+    -- use the value from the kv table
+    result = kv_table[value]
+  elseif key == 'property' then
+    -- get value by property
+    result = mp.get_property(value)
+  elseif key == 'computed' then
     -- check for computed properties
     if value == computed.parent_directory then
       local file_path = mp.get_property('path')
       if file_path ~= nil then
         -- assign the directory to path
-        path = mp.utils.split_path(file_path)
+        result = mp.utils.split_path(file_path)
       end
     end
-  else
-    path = value
   end
 
-  return path
+  return result
 end
 
-local parsed_args = parse_args(options.args, options.args_delimiter)
+---@param str string
+---@param modifiers table
+---@return string
+local function apply_modifiers(str, modifiers)
+  local result = str
 
-local function open_file_path(flag)
-  local path = get_path(flag)
+  for _, value in ipairs(modifiers) do
+    -- include other modifiers here
+    if value == 'path' then
+      result = mp.command_native({ "expand-path", result })
+    end
+  end
 
-  if path then
-    local absolute_path = mp.command_native({ "expand-path", path })
-    local args = { options.command }
-    table_append(args, parsed_args)
-    table.insert(args, absolute_path)
+  return result;
+end
 
-    mp.msg.info('Running:', table.concat(args, ' '))
+local var_table = build_kv_table(options.vars, options.vars_delimiter)
+
+---@param arg string
+---@param command_mode? boolean
+local function parse_arg(arg, command_mode)
+  ---@type string|nil
+  local result
+  local pattern = string.format('%s@(.*)/(.*)', command_mode and ':' or '')
+  ---@type string|nil, string|nil
+  local key, value = arg:match(pattern)
+
+  if key ~= nil and value ~= nil then
+    local modifiers = {}
+
+    -- split by dot to get modifiers
+    for part in string.gmatch(key, '([^.]+)') do
+      -- first match should be the value
+      if result == nil then
+        result = resolve_kv_pair(part, value, var_table)
+
+        -- stop loop if no value since we don't need to apply the modifiers
+        if result == nil then
+          break
+        end
+      else
+        table.insert(modifiers, part)
+      end
+    end
+
+    -- apply value modifiers
+    if result ~= nil then
+      result = apply_modifiers(result, modifiers)
+    end
+  elseif command_mode then
+    -- use raw value if no match
+    result = arg:match(':(.*)')
+    result = result ~= nil and resolve_kv_pair('key', result, var_table) or arg
+  else
+    -- use raw value
+    result = arg
+  end
+
+  return result
+end
+
+---@vararg string
+local function open_file_path(...)
+  -- arg
+  -- @cmd
+  -- @key[.path.modifier]/{placeholder-key}
+  -- @raw[.path.modifier]/{value}
+  -- @property[.path.modifier]/{property-key}
+  -- @computed[.path.modifier]/{computed-key}
+
+  local args = { ... }
+  local arg1 = args[1]
+  ---@type string[]
+  local cmd_args = {}
+
+  if arg1 ~= nil and arg1 ~= '@cmd' then
+    -- return early
+    if not options.command then
+      mp.msg.error("Option 'command' is required.")
+      return
+    end
+
+    local parsed = parse_arg(arg1)
+
+    -- return early
+    if parsed == nil then
+      mp.msg.error(string.format("Unable to parse: '%s'", arg1))
+      return
+    end
+
+    table.insert(cmd_args, options.command)
+    table.insert(cmd_args, parsed)
+  else
+    -- command mode
+    for i = 2, #args do
+      local arg = args[i]
+      local parsed = parse_arg(arg, true)
+
+      -- return early
+      if parsed == nil then
+        mp.msg.error(string.format("Unable to parse args[%d]: '%s'", i, arg))
+        return
+      end
+
+      table.insert(cmd_args, parsed)
+    end
+  end
+
+  if #cmd_args > 0 then
+    mp.msg.info('Running:', table.concat(cmd_args, ' '))
 
     mp.command_native_async({
       name = 'subprocess',
       capture_stderr = false,
       capture_stdout = false,
       playback_only = false,
-      args = args
+      args = cmd_args
     })
   else
-    mp.msg.warn("Unable to open path: '" .. flag .. "'")
+    local message = arg1 ~= nil
+        and string.format("Unrecognized argument: '%s'", arg1)
+        or 'No arguments.'
+    mp.msg.warn(message)
   end
 end
 
