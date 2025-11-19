@@ -76,8 +76,8 @@ script-message run-parse @property/screenshot-directory
 
 The following patterns are used for substitution.
 
-- `@key/{key}` - Use the associated value of the provided `{key}` from the [`vars`](#vars) option.
 - `@raw/{value}` - Use the `{value}` as is. Usually used with [modifiers](#modifiers).
+- `@var/{key}` - Use the associated value of the provided `{key}` from the [`vars`](#vars) option.
 - `@property/{key}` - Get the property via `mp.get_property('{key}')`.
 - `@computed/{key}` - Use the computed value. See the list of [computed properties](#computed-properties).
 
@@ -88,7 +88,7 @@ Modifiers can be added to transform the value.
 Format:
 
 ```text
-@key[.modifier[.modifiers...]]/{value}
+@var[.modifier[.modifiers...]]/{value}
 ```
 
 List of available modifiers:
@@ -132,7 +132,7 @@ Example:
 script-opts-append=run-vars=command=xdg-open,videos-dir=~/Videos
 
 # input.conf
-/ script-message run-cmd :command :@key.path/videos-dir
+/ script-message run-cmd :command :@var.path/videos-dir
 ```
 
 ## Config

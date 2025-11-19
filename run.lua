@@ -37,7 +37,7 @@ local function build_kv_table(kv_str, delimiter)
   return result
 end
 
----@param key 'raw'|'key'|'property'|'computed'|string
+---@param key 'raw'|'var'|'property'|'computed'|string
 ---@param value string
 ---@param kv_table table
 ---@return { valid_key: boolean, value: string|nil }
@@ -49,7 +49,7 @@ local function resolve_kv_pair(key, value, kv_table)
   if key == 'raw' then
     -- use value as is
     result = value
-  elseif key == 'key' then
+  elseif key == 'var' then
     -- use the value from the kv table
     result = kv_table[value]
   elseif key == 'property' then
@@ -140,7 +140,7 @@ local function parse_arg(arg, command_mode)
       result = apply_modifiers(result, modifiers)
     end
   elseif command_mode then
-    result = resolve_kv_pair('key', arg, var_table).value
+    result = resolve_kv_pair('var', arg, var_table).value
   else
     use_raw = true
   end
@@ -173,8 +173,8 @@ end
 
 ---@param arg string|nil
 local function run(arg)
-  -- @key[.path.modifier]/{placeholder-key}
   -- @raw[.path.modifier]/{value}
+  -- @var[.path.modifier]/{placeholder-key}
   -- @property[.path.modifier]/{property-key}
   -- @computed[.path.modifier]/{computed-key}
 
