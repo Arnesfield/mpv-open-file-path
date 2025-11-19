@@ -173,8 +173,6 @@ end
 
 ---@param arg string|nil
 local function run(arg)
-  -- arg
-  -- @cmd
   -- @key[.path.modifier]/{placeholder-key}
   -- @raw[.path.modifier]/{value}
   -- @property[.path.modifier]/{property-key}

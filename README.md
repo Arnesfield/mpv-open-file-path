@@ -121,16 +121,6 @@ Example `input.conf`:
 >
 > Feel free to suggest/implement new computed properties!
 
-### Command Mode
-
-With command mode, the [`command`](#command) option is ignored and you can specify what command to run and its arguments.
-
-Example `input.conf`:
-
-```conf
-/ script-message run @cmd gio open :@property.path/screenshot-directory
-```
-
 ### Variables
 
 By configuring the [`vars`](#vars) key-value pairs, you can use the keys as placeholder values.
@@ -142,7 +132,7 @@ Example:
 script-opts-append=run-vars=command=xdg-open,videos-dir=~/Videos
 
 # input.conf
-/ script-message run @cmd :command :@key.path/videos-dir
+/ script-message run-cmd :command :@key.path/videos-dir
 ```
 
 ## Config
