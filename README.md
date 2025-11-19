@@ -107,7 +107,7 @@ ctrl+/ script-message run @raw.path/~/Videos
 
 List of available computed properties:
 
-- `parent-directory` - The parent directory of the current file.
+- `parent-directory` - Get the parent directory of the current file.
 
 Example `input.conf`:
 
@@ -135,7 +135,7 @@ script-opts-append=run-vars=command=xdg-open,videos-dir=~/Videos
 
 ## Config
 
-List of configuration options ([`run.lua`](run.conf)).
+List of configuration options ([`run.conf`](run.conf)).
 
 Options can also be configured in `mpv.conf` via `script-opts` using the `run` prefix.
 

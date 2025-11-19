@@ -17,7 +17,7 @@ local options = {
 mp.options.read_options(options, 'run')
 
 local computed = {
-  -- Open the parent directory of the current file.
+  -- Get the parent directory of the current file.
   parent_directory = 'parent-directory'
 }
 
@@ -40,7 +40,7 @@ end
 ---@param key 'raw'|'var'|'property'|'computed'|string
 ---@param value string
 ---@param kv_table table
----@return { valid_key: boolean, value: string|nil }
+---@return { value: string|nil, valid_key: boolean }
 local function resolve_kv_pair(key, value, kv_table)
   ---@type string|nil
   local result
@@ -68,7 +68,7 @@ local function resolve_kv_pair(key, value, kv_table)
     valid_key = false
   end
 
-  return { valid_key = valid_key, value = result }
+  return { value = result, valid_key = valid_key }
 end
 
 ---@param str string
@@ -94,7 +94,7 @@ local function parse_arg(arg)
   ---@type string|nil
   local result
   ---@type string|nil, string|nil
-  local key, value = arg:match('^@([^/]+)/(.*)')
+  local key, value = arg:match('^@([^/]+)/(.+)')
 
   if key ~= nil and value ~= nil then
     ---@type string[]
@@ -146,20 +146,14 @@ local function run_command_async(args)
   })
 end
 
-
 ---@param arg string|nil
 local function run(arg)
-  -- @raw[.path.modifier]/{value}
-  -- @var[.path.modifier]/{placeholder-key}
-  -- @property[.path.modifier]/{property-key}
-  -- @computed[.path.modifier]/{computed-key}
-
   -- return early
   if not options.command then
     mp.msg.error("Option 'command' is required.")
     return
   elseif arg == nil then
-    mp.msg.error('Argument to run is required.')
+    mp.msg.error('No argument to run.')
     return
   end
 
@@ -209,7 +203,11 @@ local function run_parse(...)
     table.insert(result, parsed)
   end
 
-  mp.msg.info(table.concat(result, ', '))
+  if #result > 0 then
+    mp.msg.info(table.concat(result, ', '))
+  else
+    mp.msg.warn('No arguments to parse.')
+  end
 end
 
 mp.register_script_message('run', run)
