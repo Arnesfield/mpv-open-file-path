@@ -71,20 +71,23 @@ local function resolve_kv_pair(key, value, kv_table)
   return { value = result, valid_key = valid_key }
 end
 
----@param str string
+---@param value string
 ---@param modifiers table
----@return string
-local function apply_modifiers(str, modifiers)
-  for _, value in ipairs(modifiers) do
+---@return { value: string, unrecognized: string[] }
+local function apply_modifiers(value, modifiers)
+  ---@type string[]
+  local unrecognized = {}
+
+  for _, modifier in ipairs(modifiers) do
     -- include other modifiers here
-    if value == 'path' then
-      str = mp.command_native({ 'expand-path', str })
+    if modifier == 'path' then
+      value = mp.command_native({ 'expand-path', value })
     else
-      mp.msg.warn(string.format("Unrecognized modifier: '%s'", value))
+      table.insert(unrecognized, modifier)
     end
   end
 
-  return str;
+  return { value = value, unrecognized = unrecognized }
 end
 
 local var_table = build_kv_table(options.vars, options.vars_delimiter)
@@ -124,7 +127,21 @@ local function parse_arg(arg)
 
     -- apply value modifiers
     if result ~= nil then
-      result = apply_modifiers(result, modifiers)
+      local apply_result = apply_modifiers(result, modifiers)
+      local unrecognized = apply_result.unrecognized
+      result = apply_result.value
+
+      if #unrecognized > 0 then
+        ---@type string[]
+        local wrapped_modifiers = {}
+        for _, modifier in ipairs(unrecognized) do
+          table.insert(wrapped_modifiers, string.format("'%s'", modifier))
+        end
+
+        local suffix = #unrecognized == 1 and '' or 's'
+        local list = table.concat(wrapped_modifiers, ', ')
+        mp.msg.warn(string.format("Argument '%s' has unrecognized modifier%s: %s", arg, suffix, list))
+      end
     end
   else
     result = arg
